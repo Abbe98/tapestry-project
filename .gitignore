@@ -42,3 +42,8 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# devenv / direnv
+.devenv*
+devenv.local.nix
+.direnv

@@ -1,5 +1,5 @@
 inputs:
   nixpkgs:
-    url: github:cachix/devenv-nixpkgs/rolling
+    url: tarball+https://codeload.github.com/cachix/devenv-nixpkgs/tar.gz/refs/heads/rolling
 
 allowUnfree: true

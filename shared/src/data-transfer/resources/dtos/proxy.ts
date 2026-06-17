@@ -58,12 +58,29 @@ export interface FetchContentTypeProxyDto {
   result: string | null
 }
 
+export interface ReadabilityResultDto {
+  title: string | null
+  content: string
+  textContent: string | null
+  byline: string | null
+  excerpt: string | null
+  siteName: string | null
+  length: number | null
+  lang: string | null
+}
+
+export interface ReadabilityProxyDto {
+  type: 'readability'
+  result: ReadabilityResultDto | null
+}
+
 export type ProxyDto =
   | ListWBMSnapshotsProxyDto
   | CreateWBMSnapshotProxyDto
   | CanFrameProxyDto
   | IAUserListProxyDto
   | FetchContentTypeProxyDto
+  | ReadabilityProxyDto
 
 export type ProxyCreateDto =
   | CreateListWBMSnapshotsProxyDto
@@ -73,5 +90,6 @@ export type ProxyCreateDto =
         | CanFrameProxyDto['type']
         | IAUserListProxyDto['type']
         | FetchContentTypeProxyDto['type']
+        | ReadabilityProxyDto['type']
       url: string
     }

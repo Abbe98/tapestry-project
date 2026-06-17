@@ -29,6 +29,17 @@ export const UserListResponseSchema = z.object({
   }),
 })
 
+export const ReadabilityResultSchema = z.object({
+  title: z.string().nullable(),
+  content: z.string(),
+  textContent: z.string().nullable(),
+  byline: z.string().nullable(),
+  excerpt: z.string().nullable(),
+  siteName: z.string().nullable(),
+  length: z.number().nullable(),
+  lang: z.string().nullable(),
+})
+
 export const ProxySchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('list-wbm-snapshots'),
@@ -50,6 +61,10 @@ export const ProxySchema = z.discriminatedUnion('type', [
     type: z.literal('content-type'),
     result: z.string(),
   }),
+  z.object({
+    type: z.literal('readability'),
+    result: ReadabilityResultSchema.nullable(),
+  }),
 ])
 
 const CreateListWBMSnapshotsProxySchema = z.object({
@@ -59,7 +74,13 @@ const CreateListWBMSnapshotsProxySchema = z.object({
 })
 
 const CreateFromUrlProxySchema = z.object({
-  type: z.enum(['create-wbm-snapshot', 'can-frame', 'ia-user-list', 'content-type']),
+  type: z.enum([
+    'create-wbm-snapshot',
+    'can-frame',
+    'ia-user-list',
+    'content-type',
+    'readability',
+  ]),
   url: z.string(),
 })
 

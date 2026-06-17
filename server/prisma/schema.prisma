@@ -144,6 +144,12 @@ enum WebpageType {
   iaVideo
 }
 
+enum WebpageRenderMode {
+  frame
+  reader
+  favicon
+}
+
 enum ActionType {
   internalLink
   externalLink
@@ -161,6 +167,7 @@ model Item {
   height                 Int
   type                   ItemType
   webpageType            WebpageType?
+  renderMode             WebpageRenderMode?
   title                  String?
   dropShadow             Boolean
   text                   String?

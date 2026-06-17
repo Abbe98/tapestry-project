@@ -4,6 +4,9 @@ import { HexColorSchema, IdentifiableSchema, PointSchema, SizeSchema } from './c
 export const KNOWN_WEBPAGE_TYPES = ['youtube', 'vimeo', 'iaWayback', 'iaAudio', 'iaVideo'] as const
 export type WebpageType = (typeof KNOWN_WEBPAGE_TYPES)[number]
 
+export const WEBPAGE_RENDER_MODES = ['frame', 'reader', 'favicon'] as const
+export type WebpageRenderMode = (typeof WEBPAGE_RENDER_MODES)[number]
+
 export const ACTION_BUTTON_TYPE = ['internalLink', 'externalLink'] as const
 
 export const ThumbnailSchema = z.object({
@@ -117,6 +120,14 @@ export const WebpageItemSchema = z.object({
         'which have additional custom functionalities in the Tapestry viewer. In general these include ' +
         'known sources of audio and video content such as YouTube, Vimeo, and Internet Archive (IA) audio/video ' +
         "pages. Additionally, we have special handling of IA's Wayback Machine pages",
+    ),
+  renderMode: z
+    .enum(WEBPAGE_RENDER_MODES)
+    .nullish()
+    .describe(
+      'Controls how the webpage is displayed on the canvas. "frame" (the default) renders the page in an iframe; ' +
+        '"reader" extracts and displays the main article content via Mozilla\'s Readability; ' +
+        '"favicon" displays just the site\'s favicon as a clickable link that opens the page in a new tab.',
     ),
 })
 

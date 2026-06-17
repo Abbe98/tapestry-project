@@ -14,7 +14,7 @@ import {
   WebpageItemViewer,
   WebpageItemViewerApi,
 } from 'tapestry-core-client/src/components/tapestry/items/webpage/viewer'
-import { WebpageType } from 'tapestry-core/src/data-format/schemas/item'
+import { WebpageRenderMode, WebpageType } from 'tapestry-core/src/data-format/schemas/item'
 import { parseWebSource, WEB_SOURCE_PARSERS } from 'tapestry-core/src/web-sources'
 import { WebpageItemDto } from 'tapestry-shared/src/data-transfer/resources/dtos/item'
 import { TapestryItemProps } from '..'
@@ -27,6 +27,8 @@ import { buildToolbarMenu } from '../../item-toolbar'
 import { PlayableShareMenu, shareMenu } from '../../item-toolbar/share-menu'
 import { useItemToolbar } from '../../item-toolbar/use-item-toolbar'
 import { TapestryItem } from '../tapestry-item'
+import { FaviconView } from './favicon-view'
+import { ReaderView } from './reader-view'
 import styles from './styles.module.css'
 
 const checkedSources = new Map<string, boolean>()
@@ -89,12 +91,24 @@ type PatchSourceArgument =
       data: Partial<{ startTime: number | null; stopTime: number | null }>
     }
 
+const RENDER_MODE_OPTIONS: {
+  mode: WebpageRenderMode
+  icon: 'iframe' | 'menu_book' | 'link'
+  label: string
+}[] = [
+  { mode: 'frame', icon: 'iframe', label: 'Render as embedded page' },
+  { mode: 'reader', icon: 'menu_book', label: 'Render as reader view (extracted article)' },
+  { mode: 'favicon', icon: 'link', label: 'Render as favicon link' },
+]
+
 export const WebpageItem = memo(({ id }: TapestryItemProps) => {
   const apiRef = useRef<WebpageItemViewerApi>(null)
   const dto = useTapestryData(`items.${id}.dto`) as WebpageItemDto
   const isEditMode = useTapestryData('interactionMode') === 'edit'
   const webSourceParams = parseWebSource(dto)
   const { webpageType } = webSourceParams
+  const renderMode: WebpageRenderMode = dto.renderMode ?? 'frame'
+  const renderModeSupported = !webpageType || webpageType === 'iaWayback'
 
   const dispatch = useDispatch()
   const patch = ({ webpageType, data }: PatchSourceArgument) =>
@@ -108,6 +122,9 @@ export const WebpageItem = memo(({ id }: TapestryItemProps) => {
         },
       }),
     )
+
+  const setRenderMode = (mode: WebpageRenderMode) =>
+    dispatch(updateItem(id, { dto: { renderMode: mode } }))
 
   const { startTime, stopTime } = getPlaybackInterval(webSourceParams)
   const [showSaveToWBMPrompt, setShowSaveToWBMPrompt] = useState(false)
@@ -151,6 +168,22 @@ export const WebpageItem = memo(({ id }: TapestryItemProps) => {
     tooltip: { side: 'bottom', children: 'Refresh this webpage' },
   }
 
+  const renderModeButtons: SimpleMenuItem[] = renderModeSupported
+    ? RENDER_MODE_OPTIONS.map(({ mode, icon, label }) => ({
+        element: (
+          <IconButton
+            icon={icon}
+            aria-label={label}
+            isActive={renderMode === mode}
+            onClick={() => {
+              if (renderMode !== mode) setRenderMode(mode)
+            }}
+          />
+        ),
+        tooltip: { side: 'bottom', children: label },
+      }))
+    : []
+
   const { toolbar } = useItemToolbar(id, {
     items: (ctrls) => {
       const isPlayable = !!webpageType && PLAYABLE_WEBPAGE_TYPES.includes(webpageType)
@@ -165,26 +198,30 @@ export const WebpageItem = memo(({ id }: TapestryItemProps) => {
             })
           : 'share',
       })
+      const editModeItems: SimpleMenuItem[] = [
+        {
+          element: isLoadingWBMSnapshots ? (
+            <LoadingSpinner style={{ alignSelf: 'center' }} size="16px" />
+          ) : (
+            <IconButton
+              icon="account_balance"
+              aria-label="Switch to Wayback Machine version"
+              onClick={trySwitchToWBM}
+            />
+          ),
+          tooltip: { side: 'bottom', children: 'Switch to Wayback Machine version' },
+        },
+      ]
+      if (renderModeButtons.length > 0) {
+        editModeItems.push('separator', ...renderModeButtons)
+      }
+      const refreshSegment: SimpleMenuItem[] =
+        renderMode === 'frame' ? ['separator', refreshButton] : []
       return isEditMode
-        ? [
-            {
-              element: isLoadingWBMSnapshots ? (
-                <LoadingSpinner style={{ alignSelf: 'center' }} size="16px" />
-              ) : (
-                <IconButton
-                  icon="account_balance"
-                  aria-label="Switch to Wayback Machine version"
-                  onClick={trySwitchToWBM}
-                />
-              ),
-              tooltip: { side: 'bottom', children: 'Switch to Wayback Machine version' },
-            },
-            'separator',
-            refreshButton,
-            'separator',
-            ...controls,
-          ]
-        : [refreshButton, 'separator', ...controls]
+        ? [...editModeItems, ...refreshSegment, 'separator', ...controls]
+        : renderMode === 'frame'
+          ? [refreshButton, 'separator', ...controls]
+          : [...controls]
     },
     moreMenuItems:
       webpageType === 'youtube' || webpageType === 'vimeo'
@@ -218,7 +255,13 @@ export const WebpageItem = memo(({ id }: TapestryItemProps) => {
   return (
     <>
       <TapestryItem id={id} halo={toolbar}>
-        <WebpageItemViewer id={id} WebFrame={Webpage} apiRef={apiRef} />
+        {renderMode === 'reader' && renderModeSupported ? (
+          <ReaderView item={dto} />
+        ) : renderMode === 'favicon' && renderModeSupported ? (
+          <FaviconView item={dto} />
+        ) : (
+          <WebpageItemViewer id={id} WebFrame={Webpage} apiRef={apiRef} />
+        )}
       </TapestryItem>
       {showSaveToWBMPrompt && (
         <SimpleModal

@@ -103,6 +103,7 @@ export async function itemDbToDto(dbItem: Item): Promise<ItemDto> {
     type,
     ...commonMediaItemProps,
     webpageType: dbItem.webpageType,
+    renderMode: dbItem.renderMode,
   }
 }
 
@@ -118,6 +119,7 @@ const DB_TO_DTO_FIELD_MAP: Record<ItemDBField, string> = {
   height: 'size.height',
   type: 'type',
   webpageType: 'webpageType',
+  renderMode: 'renderMode',
   title: 'title',
   dropShadow: 'dropShadow',
   text: 'text',

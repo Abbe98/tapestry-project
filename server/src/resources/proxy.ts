@@ -2,6 +2,7 @@ import { Resources } from 'tapestry-shared/src/data-transfer/resources/index.js'
 import { RESTResourceImpl } from './base-resource.js'
 import { BadRequestError, ServerError } from '../errors/index.js'
 import {
+  ReadabilityResultDto,
   UserListResponse,
   WBMSnapshotDto,
 } from 'tapestry-shared/src/data-transfer/resources/dtos/proxy.js'
@@ -9,6 +10,8 @@ import { parseInternetArchiveURL } from 'tapestry-core/src/internet-archive.js'
 import { zipObject } from 'lodash-es'
 import { RedisCache } from '../services/redis.js'
 import { config } from '../config.js'
+import { Readability } from '@mozilla/readability'
+import { JSDOM } from 'jsdom'
 
 const WBM_SEARCH_ENDPOINT = 'https://web.archive.org/cdx/search/cdx'
 // This limit is not imposed by the WBM search endpoint. We set it here artificially only to avoid enormous queries.
@@ -56,6 +59,55 @@ function canFrame(url: string, headers: Headers, host: string) {
 }
 
 const wbmSearchResultsCache = new RedisCache('wbm-search-results')
+const readabilityCache = new RedisCache('readability-results')
+
+const READABILITY_FETCH_TIMEOUT_MS = 15_000
+const READABILITY_MAX_HTML_BYTES = 5 * 1024 * 1024
+
+async function extractReadableContent(url: string): Promise<ReadabilityResultDto | null> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), READABILITY_FETCH_TIMEOUT_MS)
+
+  let html: string
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (compatible; TapestryReadability/1.0; +https://tapestries.media)',
+        Accept: 'text/html,application/xhtml+xml',
+      },
+    })
+    if (!response.ok) {
+      return null
+    }
+    const buffer = await response.arrayBuffer()
+    if (buffer.byteLength > READABILITY_MAX_HTML_BYTES) {
+      return null
+    }
+    html = new TextDecoder('utf-8', { fatal: false }).decode(buffer)
+  } finally {
+    clearTimeout(timeoutId)
+  }
+
+  const dom = new JSDOM(html, { url })
+  const article = new Readability(dom.window.document).parse()
+  if (!article) {
+    return null
+  }
+
+  return {
+    title: article.title || null,
+    content: article.content || '',
+    textContent: article.textContent || null,
+    byline: article.byline || null,
+    excerpt: article.excerpt || null,
+    siteName: article.siteName || null,
+    length: typeof article.length === 'number' ? article.length : null,
+    lang: article.lang || null,
+  }
+}
 
 export const proxy: RESTResourceImpl<Resources['proxy'], never> = {
   accessPolicy: {
@@ -151,6 +203,25 @@ export const proxy: RESTResourceImpl<Resources['proxy'], never> = {
           return {
             type: 'content-type',
             result: (await fetch(body.url, { method: 'head' })).headers.get('content-type'),
+          }
+        }
+        case 'readability': {
+          const cached = await readabilityCache.memoize(
+            body.url,
+            async () => {
+              try {
+                const result = await extractReadableContent(body.url)
+                return JSON.stringify(result)
+              } catch (error) {
+                console.warn(`Error extracting readable content from "${body.url}"`, error)
+                return JSON.stringify(null)
+              }
+            },
+            config.server.readabilityCacheDuration,
+          )
+          return {
+            type: 'readability',
+            result: JSON.parse(cached) as ReadabilityResultDto | null,
           }
         }
       }
